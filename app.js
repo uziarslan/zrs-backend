@@ -8,6 +8,7 @@ require("./models/vehicleTrim");
 require("./models/car");
 require("./models/sellCarSchema");
 require("./models/FinanceEligibility");
+require("./models/testDrive");
 const express = require("express");
 const app = express();
 const session = require("express-session");
@@ -21,9 +22,9 @@ const homepageRoutes = require("./routes/homepageRoutes");
 const agenda = require("./middlewares/agenda");
 
 // Variables
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
 
-const mongoURi = process.env.MONGODB_URI;
+const mongoURi = process.env.MONGODB_URI || "mongodb://localhost:27017/zrs";
 
 const secret = "thisisnotagoodsecret";
 

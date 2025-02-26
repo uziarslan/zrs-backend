@@ -9,6 +9,8 @@ const {
   createSellCar,
   createFinanceEligibility,
   getFinanceEligibility,
+  getSellCarFormData,
+  createTestDrive
 } = require("../controllers/homepage");
 
 const multer = require("multer");
@@ -23,6 +25,12 @@ router.get("/fetch-logos", wrapAsync(fetchLogos));
 // fetch cars based on the query params
 router.get("/cars/featured", wrapAsync(fetchCars));
 
+// Fetch all the cars
+router.get("/cars/test-drive", wrapAsync(fetchCars));
+
+// post the test drive form data
+router.post("/test-drive", wrapAsync(createTestDrive));
+
 // Fetch a single car
 router.get("/car/:id", wrapAsync(getCar));
 
@@ -34,6 +42,9 @@ router.get("/cars/filter", wrapAsync(getFilteredCars));
 
 // Sell Car form Submission
 router.post("/sell-car", upload.array("images"), wrapAsync(createSellCar));
+
+// Fetch the sell car form data
+router.get("/sell-car", wrapAsync(getSellCarFormData));
 
 // Finance Form Submiition
 router.post("/finance-eligibility", wrapAsync(createFinanceEligibility));

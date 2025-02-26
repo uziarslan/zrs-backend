@@ -3,6 +3,7 @@ const Manufacturer = mongoose.model("Manufacturer");
 const Car = mongoose.model("Car");
 const SellCar = mongoose.model("SellCar");
 const FinanceEligibility = mongoose.model("FinanceEligibility");
+const TestDrive = mongoose.model("TestDrive");
 
 const fetchLogos = async (req, res) => {
   // Fetch all manufacturers with their brandName and logo
@@ -12,7 +13,7 @@ const fetchLogos = async (req, res) => {
 };
 
 const fetchCars = async (req, res) => {
-  const { featured } = req.query;
+  const { featured, testDrive } = req.query;
 
   let cars;
   if (featured) {
@@ -20,9 +21,14 @@ const fetchCars = async (req, res) => {
       .populate("manufacturerId")
       .populate("vehicleTypeId")
       .populate("trimId");
+  } else if (testDrive) {
+    cars = await Car.find({ testDrive: "yes" })
+      .populate("manufacturerId")
+      .populate("vehicleTypeId")
+      .populate("trimId");
   }
 
-  if (!cars) return res.status(400).json({ error: "Invaild Search" });
+  if (!cars) return res.status(400).json({ error: "Invalid Search" });
 
   res.status(200).json(cars);
 };
@@ -278,6 +284,37 @@ const getFinanceEligibility = async (req, res) => {
   }
 };
 
+const getSellCarFormData = async (req, res) => {
+  const sellCarFormData = await SellCar.find().lean();
+  res.json(sellCarFormData);
+};
+
+const createTestDrive = async (req, res) => {
+  try {
+    const { fullName, email, mobileNumber, date, time, carId } = req.body;
+
+    // Create new TestDrive document
+    const testDrive = new TestDrive({
+      fullName,
+      email,
+      mobileNumber,
+      date,
+      time,
+      carId,
+    });
+
+    // Save to MongoDB
+    await testDrive.save();
+    res.status(201).json({
+      message: "Test drive request submitted successfully",
+      testDrive,
+    });
+  } catch (error) {
+    console.error("Error creating test drive request:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   fetchLogos,
   fetchCars,
@@ -287,4 +324,6 @@ module.exports = {
   createSellCar,
   createFinanceEligibility,
   getFinanceEligibility,
+  getSellCarFormData,
+  createTestDrive
 };
