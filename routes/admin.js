@@ -20,6 +20,9 @@ const {
   getAllCars,
   updateCar,
   deleteCar,
+  getContactUs,
+  createContactUs,
+  getTestDrives, // Add this line
 } = require("../controllers/admin");
 const multer = require("multer");
 const { storage } = require("../cloudinary");
@@ -101,5 +104,14 @@ router.put(
 
 // Delete a car (including its images)
 router.delete("/:id", wrapAsync(deleteCar));
+
+// Router to fetch contact us data
+router.get("/contact-us", protect, wrapAsync(getContactUs));
+
+// Add this line
+router.post("/contact-us", wrapAsync(createContactUs));
+
+// Fetch test drive data
+router.get("/test-drives", wrapAsync(getTestDrives)); // Add this line
 
 module.exports = router;

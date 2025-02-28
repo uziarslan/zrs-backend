@@ -9,6 +9,7 @@ require("./models/car");
 require("./models/sellCarSchema");
 require("./models/FinanceEligibility");
 require("./models/testDrive");
+require("./models/contactus");
 const express = require("express");
 const app = express();
 const session = require("express-session");

@@ -3,7 +3,9 @@ const Admin = mongoose.model("Admin");
 const Manufacturer = mongoose.model("Manufacturer");
 const VehicleType = mongoose.model("VehicleType");
 const VehicleTrim = mongoose.model("VehicleTrim");
+const TestDrive = require("../models/testDrive");
 const Car = mongoose.model("Car");
+const ContactUs = require("../models/contactus");
 const jwt = require("jsonwebtoken");
 const agenda = require("../middlewares/agenda");
 const { MailtrapClient } = require("mailtrap");
@@ -486,6 +488,49 @@ const deleteCar = async (req, res) => {
   }
 };
 
+const getContactUs = async (req, res) => {
+  try {
+    const contactUsData = await ContactUs.find();
+    res.status(200).json(contactUsData);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch contact us data" });
+  }
+};
+
+const createContactUs = async (req, res) => {
+  try {
+    const { firstName, lastName, email, mobileNumber, message } = req.body;
+
+    const newContactUs = new ContactUs({
+      firstName,
+      lastName,
+      email,
+      mobileNumber,
+      message,
+    });
+
+    await newContactUs.save();
+    res.status(201).json({ message: "Contact form submitted successfully", newContactUs });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to submit contact form" });
+  }
+};
+
+const getTestDrives = async (req, res) => {
+  try {
+    const testDrives = await TestDrive.find().populate({
+      path: 'carId',
+      populate: [
+        { path: 'manufacturerId', select: 'brandName' },
+        { path: 'vehicleTypeId', select: 'modelName' }
+      ]
+    });
+    res.status(200).json(testDrives);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch test drive data" });
+  }
+};
+
 module.exports = {
   registerAdmin,
   adminLogin,
@@ -505,4 +550,7 @@ module.exports = {
   getAllCars,
   updateCar,
   deleteCar,
+  getContactUs,
+  createContactUs,
+  getTestDrives, // Add this line
 };
