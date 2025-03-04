@@ -10,6 +10,8 @@ require("./models/sellCarSchema");
 require("./models/FinanceEligibility");
 require("./models/testDrive");
 require("./models/contactus");
+require("./models/blogs");
+require("./models/subscribe");
 const express = require("express");
 const app = express();
 const session = require("express-session");

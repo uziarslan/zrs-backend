@@ -10,7 +10,10 @@ const {
   createFinanceEligibility,
   getFinanceEligibility,
   getSellCarFormData,
-  createTestDrive
+  createTestDrive,
+  getSingleBlog,
+  getLatestBlogs,
+  subscribeUser
 } = require("../controllers/homepage");
 
 const multer = require("multer");
@@ -51,5 +54,17 @@ router.post("/finance-eligibility", wrapAsync(createFinanceEligibility));
 
 // Get Finance Eligibility Documents
 router.get("/finance-eligibility", wrapAsync(getFinanceEligibility));
+
+// Fetch latest blogs
+router.get('/blogs/latest', wrapAsync(getLatestBlogs));
+
+// Fetch a single blog
+router.get('/blogs/:id', wrapAsync(getSingleBlog));
+
+
+// Handle the subscribe emails
+router.post("/subscribe", wrapAsync(subscribeUser));
+
+
 
 module.exports = router;

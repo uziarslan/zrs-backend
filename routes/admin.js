@@ -22,7 +22,11 @@ const {
   deleteCar,
   getContactUs,
   createContactUs,
-  getTestDrives, // Add this line
+  getTestDrives,
+  createBlog,
+  getAllBlogs,
+  editBlog,
+  deleteBlog,
 } = require("../controllers/admin");
 const multer = require("multer");
 const { storage } = require("../cloudinary");
@@ -113,5 +117,18 @@ router.post("/contact-us", wrapAsync(createContactUs));
 
 // Fetch test drive data
 router.get("/test-drives", wrapAsync(getTestDrives)); // Add this line
+
+
+// Create a blog post
+router.post("/blogs", protect, upload.single("image"), wrapAsync(createBlog));
+
+// Get all blog posts
+router.get("/blogs", wrapAsync(getAllBlogs)); // Public access to fetch all blogs
+
+// Edit a blog post
+router.put("/blogs/:id", protect, upload.single("image"), wrapAsync(editBlog));
+
+// Delete a blog post
+router.delete("/blogs/:id", protect, wrapAsync(deleteBlog));
 
 module.exports = router;

@@ -3,6 +3,7 @@ const Admin = mongoose.model("Admin");
 const Manufacturer = mongoose.model("Manufacturer");
 const VehicleType = mongoose.model("VehicleType");
 const VehicleTrim = mongoose.model("VehicleTrim");
+const Blog = mongoose.model("Blog");
 const TestDrive = require("../models/testDrive");
 const Car = mongoose.model("Car");
 const ContactUs = require("../models/contactus");
@@ -136,9 +137,9 @@ const updateManufacturer = async (req, res, next) => {
       brandName: brandName,
       logo: logo
         ? {
-            path: logo.path,
-            filename: logo.filename,
-          }
+          path: logo.path,
+          filename: logo.filename,
+        }
         : manufacturer.logo, // If no new logo is provided, keep the current one
     },
     { new: true, runValidators: true }
@@ -347,9 +348,9 @@ const createCar = async (req, res) => {
   // Transform uploaded files into { filename, path } objects
   const imageData = req.files
     ? req.files.map((file) => ({
-        filename: file.filename,
-        path: file.path,
-      }))
+      filename: file.filename,
+      path: file.path,
+    }))
     : [];
 
   // Parse specifications if it's a string
@@ -531,6 +532,130 @@ const getTestDrives = async (req, res) => {
   }
 };
 
+
+const createBlog = async (req, res) => {
+  try {
+    // Extract form data
+    const { title, description } = req.body;
+    const image = req.file;
+    const adminId = req.user.id; // From authentication middleware
+
+    // Validate required fields
+    if (!title || !description) {
+      return res.status(400).json({ error: "Title and description are required" });
+    }
+    if (!image) {
+      return res.status(400).json({ error: "Thumbnail image is required" });
+    }
+
+    // Verify admin
+    const admin = await Admin.findById(adminId);
+    if (!admin) {
+      return res.status(404).json({ error: "Admin not found" });
+    }
+
+    // Create new blog
+    const blog = new Blog({
+      title,
+      description,
+      image: { filename: image.filename, path: image.path },
+      postedBy: adminId,
+    });
+
+    await blog.save();
+
+    // Respond with success
+    res.status(201).json({
+      success: "Blog created successfully",
+    });
+  } catch (error) {
+    console.error("Error creating blog:", error);
+    res.status(500).json({ error: "Failed to create blog" });
+  }
+};
+
+// Fetch all blogs
+const getAllBlogs = async (req, res) => {
+  try {
+    const blogs = await Blog.find().populate("postedBy", "name");
+    res.status(200).json({ blogs });
+  } catch (error) {
+    console.error("Error fetching blogs:", error);
+    res.status(500).json({ error: "Failed to fetch blogs" });
+  }
+};
+
+// Edit a blog
+const editBlog = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description } = req.body;
+    const newImage = req.file; // From upload.single("image")
+
+    const blog = await Blog.findById(id);
+    if (!blog) {
+      return res.status(404).json({ error: "Blog not found" });
+    }
+
+    // Check if the user is the author (admin)
+    if (blog.postedBy.toString() !== req.user.id) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    // If a new image is uploaded, delete the old one from Cloudinary
+    if (newImage && blog.image && blog.image.filename) {
+      await agenda.now("deleteFileFromCloudinary", { filename: blog.image.filename });
+    }
+
+    // Update fields only if provided
+    blog.title = title || blog.title;
+    blog.description = description || blog.description;
+    if (newImage) {
+      blog.image = {
+        filename: newImage.filename, // Cloudinary public ID or unique filename
+        path: newImage.path, // Adjust path as needed
+      };
+    }
+
+    const updatedBlog = await blog.save();
+
+    const populatedBlog = await Blog.findById(updatedBlog._id).populate("postedBy", "name");
+
+    res.status(200).json({ message: "Blog updated successfully", blog: populatedBlog });
+  } catch (error) {
+    console.error("Error updating blog:", error);
+    res.status(500).json({ error: "Failed to update blog" });
+  }
+};
+
+// Delete a blog
+const deleteBlog = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const blog = await Blog.findById(id);
+
+    if (!blog) {
+      return res.status(404).json({ error: "Blog not found" });
+    }
+
+    // Check if the user is the author (admin)
+    if (blog.postedBy.toString() !== req.user.id) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    // Schedule deletion of the image from Cloudinary
+    if (blog.image && blog.image.filename) {
+      await agenda.now("deleteFileFromCloudinary", { filename: blog.image.filename });
+    }
+
+    await blog.deleteOne();
+    res.status(200).json({ success: "Blog deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting blog:", error);
+    res.status(500).json({ error: "Failed to delete blog" });
+  }
+};
+
 module.exports = {
   registerAdmin,
   adminLogin,
@@ -552,5 +677,9 @@ module.exports = {
   deleteCar,
   getContactUs,
   createContactUs,
-  getTestDrives, // Add this line
+  getTestDrives,
+  createBlog,
+  getAllBlogs,
+  editBlog,
+  deleteBlog,
 };

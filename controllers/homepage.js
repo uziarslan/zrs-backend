@@ -4,6 +4,8 @@ const Car = mongoose.model("Car");
 const SellCar = mongoose.model("SellCar");
 const FinanceEligibility = mongoose.model("FinanceEligibility");
 const TestDrive = mongoose.model("TestDrive");
+const Blog = mongoose.model("Blog");
+const Subscribe = mongoose.model("Subscribe");
 
 const fetchLogos = async (req, res) => {
   // Fetch all manufacturers with their brandName and logo
@@ -315,6 +317,52 @@ const createTestDrive = async (req, res) => {
   }
 };
 
+const getSingleBlog = async (req, res) => {
+  const { id } = req.params;
+
+  const blog = await Blog.findById(id).populate("postedBy", "name");
+
+  if (!blog) return res.status(404).json({ error: "No such blog found." });
+
+  res.status(200).json(blog);
+}
+
+// controllers/blogController.js
+const getLatestBlogs = async (req, res) => {
+  const limit = parseInt(req.query.limit) || 4;
+
+  const blogs = await Blog.find({})
+    .sort({ createdAt: -1 }) // Sort descending (newest first)
+    .limit(limit)
+    .select('title createdAt') // Only return title and createdAt
+    .lean(); // Return plain JS objects to avoid Mongoose document overhead
+
+  if (!blogs || blogs.length === 0) {
+    return res.status(404).json({ message: 'No blogs found' });
+  }
+
+  res.json(blogs);
+};
+
+
+const subscribeUser = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) return res.status(400).json({ error: "Email is required" });
+
+  const subscribe = await Subscribe.find({ email });
+
+  if (subscribe.length > 0) {
+    return res.status(400).json({ error: "Email already subscribed" });
+  }
+
+  const newSubscribe = new Subscribe({ email });
+  await newSubscribe.save();
+
+  res.status(201).json({ success: "Subscribed successfully" });
+}
+
+
 module.exports = {
   fetchLogos,
   fetchCars,
@@ -325,5 +373,8 @@ module.exports = {
   createFinanceEligibility,
   getFinanceEligibility,
   getSellCarFormData,
-  createTestDrive
+  createTestDrive,
+  getSingleBlog,
+  getLatestBlogs,
+  subscribeUser
 };
