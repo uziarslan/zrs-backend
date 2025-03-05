@@ -13,7 +13,8 @@ const {
   createTestDrive,
   getSingleBlog,
   getLatestBlogs,
-  subscribeUser
+  subscribeUser,
+  createBuyCar
 } = require("../controllers/homepage");
 
 const multer = require("multer");
@@ -33,6 +34,9 @@ router.get("/cars/test-drive", wrapAsync(fetchCars));
 
 // post the test drive form data
 router.post("/test-drive", wrapAsync(createTestDrive));
+
+// Post the buy now form data
+router.post("/buy-car", wrapAsync(createBuyCar));
 
 // Fetch a single car
 router.get("/car/:id", wrapAsync(getCar));

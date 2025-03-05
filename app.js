@@ -12,6 +12,7 @@ require("./models/testDrive");
 require("./models/contactus");
 require("./models/blogs");
 require("./models/subscribe");
+require("./models/buycar");
 const express = require("express");
 const app = express();
 const session = require("express-session");

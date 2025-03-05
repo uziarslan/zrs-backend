@@ -6,6 +6,7 @@ const FinanceEligibility = mongoose.model("FinanceEligibility");
 const TestDrive = mongoose.model("TestDrive");
 const Blog = mongoose.model("Blog");
 const Subscribe = mongoose.model("Subscribe");
+const BuyCar = mongoose.model("BuyCar");
 
 const fetchLogos = async (req, res) => {
   // Fetch all manufacturers with their brandName and logo
@@ -317,6 +318,31 @@ const createTestDrive = async (req, res) => {
   }
 };
 
+const createBuyCar = async (req, res) => {
+  try {
+    const { firstName, lastName, mobileNumber, email, carId } = req.body;
+
+    // Create new TestDrive document
+    const buycar = new BuyCar({
+      firstName,
+      lastName,
+      email,
+      mobileNumber,
+      carId
+    });
+
+    // Save to MongoDB
+    await buycar.save();
+    res.status(201).json({
+      message: "Buy car request submitted successfully",
+      buycar,
+    });
+  } catch (error) {
+    console.error("Error creating Buy car request:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 const getSingleBlog = async (req, res) => {
   const { id } = req.params;
 
@@ -376,5 +402,6 @@ module.exports = {
   createTestDrive,
   getSingleBlog,
   getLatestBlogs,
-  subscribeUser
+  subscribeUser,
+  createBuyCar
 };
