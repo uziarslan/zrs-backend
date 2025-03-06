@@ -27,6 +27,7 @@ const {
   getAllBlogs,
   editBlog,
   deleteBlog,
+  getBuyNowCars
 } = require("../controllers/admin");
 const multer = require("multer");
 const { storage } = require("../cloudinary");
@@ -116,7 +117,10 @@ router.get("/contact-us", protect, wrapAsync(getContactUs));
 router.post("/contact-us", wrapAsync(createContactUs));
 
 // Fetch test drive data
-router.get("/test-drives", wrapAsync(getTestDrives)); // Add this line
+router.get("/test-drives", wrapAsync(getTestDrives));
+
+// Fetch all Buy now cars
+router.get("/buy-car", wrapAsync(getBuyNowCars))
 
 
 // Create a blog post

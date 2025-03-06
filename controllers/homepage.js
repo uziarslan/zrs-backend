@@ -59,7 +59,8 @@ const getFilteredCars = async (req, res) => {
       companies,
       bodyTypes,
       availableNow,
-      vehicleType, // Changed from model
+      vehicleType,
+      title,
     } = req.query;
 
     let query = {};
@@ -72,7 +73,8 @@ const getFilteredCars = async (req, res) => {
       !companies &&
       !bodyTypes &&
       !availableNow &&
-      !vehicleType
+      !vehicleType &&
+      !title
     ) {
       const cars = await Car.find({})
         .populate("manufacturerId")
@@ -82,13 +84,14 @@ const getFilteredCars = async (req, res) => {
       return res.json({ cars });
     }
 
-    // Mileage filter
+    // Other Filters (unchanged)
     if (mileage) {
       const [minMileage, maxMileage] = mileage
         .split(",")
         .map((m) => parseInt(m) || 0);
       if (!isNaN(minMileage) && !isNaN(maxMileage)) {
-        query.$expr = {
+        query.$expr = query.$expr || { $and: [] };
+        query.$expr.$and.push({
           $and: [
             {
               $gte: [
@@ -107,11 +110,10 @@ const getFilteredCars = async (req, res) => {
               ],
             },
           ],
-        };
+        });
       }
     }
 
-    // Year filter
     if (yearBuilt) {
       const [minYear, maxYear] = yearBuilt
         .split(",")
@@ -125,7 +127,6 @@ const getFilteredCars = async (req, res) => {
       }
     }
 
-    // Monthly installment filter
     if (monthlyInstallment) {
       const [minInstallment, maxInstallment] = monthlyInstallment
         .split(",")
@@ -138,7 +139,6 @@ const getFilteredCars = async (req, res) => {
       }
     }
 
-    // Companies filter
     if (companies) {
       const companyArray = companies.split(",").filter(Boolean);
       if (companyArray.length > 0) {
@@ -147,13 +147,11 @@ const getFilteredCars = async (req, res) => {
             $in: companyArray.map((c) => new RegExp(`^${c}$`, "i")),
           },
         }).select("_id");
-
         const manufacturerIds = manufacturers.map((m) => m._id);
         query.manufacturerId = { $in: manufacturerIds };
       }
     }
 
-    // Body types filter
     if (bodyTypes) {
       const bodyTypeArray = bodyTypes.split(",").filter(Boolean);
       if (bodyTypeArray.length > 0) {
@@ -163,21 +161,35 @@ const getFilteredCars = async (req, res) => {
       }
     }
 
-    // Vehicle type filter (expects ObjectId)
     if (vehicleType) {
-      query.vehicleTypeId = vehicleType; // Direct match with ObjectId
+      query.vehicleTypeId = vehicleType;
     }
 
-    // Availability filter
     if (availableNow === "true") {
-      query.saleStatus = "";
+      query.saleStatus = "for-sale";
     }
 
-    const cars = await Car.find(query)
+    // Fetch all cars matching other filters first
+    let cars = await Car.find(query)
       .populate("manufacturerId")
       .populate("vehicleTypeId")
       .populate("trimId")
       .lean();
+
+    // Apply title filter post-query if provided
+    if (title) {
+      const titleLower = title.toLowerCase();
+      cars = cars.filter((car) => {
+        const constructedTitle = `${car.manufacturerId?.brandName || ""} ${car.vehicleTypeId?.modelName || ""
+          } ${car.trimId?.trimName || ""}`.toLowerCase();
+        const carTitle = car.title ? car.title.toLowerCase() : "";
+        return (
+          (carTitle && carTitle.includes(titleLower)) ||
+          constructedTitle.includes(titleLower)
+        );
+      });
+    }
+
     res.json({ cars });
   } catch (error) {
     console.error("Error filtering cars:", error);

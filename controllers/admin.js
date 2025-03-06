@@ -4,6 +4,7 @@ const Manufacturer = mongoose.model("Manufacturer");
 const VehicleType = mongoose.model("VehicleType");
 const VehicleTrim = mongoose.model("VehicleTrim");
 const Blog = mongoose.model("Blog");
+const BuyCar = mongoose.model("BuyCar");
 const TestDrive = require("../models/testDrive");
 const Car = mongoose.model("Car");
 const ContactUs = require("../models/contactus");
@@ -533,6 +534,22 @@ const getTestDrives = async (req, res) => {
 };
 
 
+const getBuyNowCars = async (req, res) => {
+  try {
+    const buycar = await BuyCar.find().populate({
+      path: 'carId',
+      populate: [
+        { path: 'manufacturerId', select: 'brandName' },
+        { path: 'vehicleTypeId', select: 'modelName' }
+      ]
+    });
+    res.status(200).json(buycar)
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch buy car drive data" });
+  }
+}
+
+
 const createBlog = async (req, res) => {
   try {
     // Extract form data
@@ -682,4 +699,5 @@ module.exports = {
   getAllBlogs,
   editBlog,
   deleteBlog,
+  getBuyNowCars
 };
