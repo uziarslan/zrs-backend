@@ -25,6 +25,7 @@ const adminRoutes = require("./routes/admin");
 const homepageRoutes = require("./routes/homepageRoutes");
 const agenda = require("./middlewares/agenda");
 
+
 // Variables
 const PORT = process.env.PORT || 3000;
 
@@ -85,12 +86,11 @@ mongoose
   .connect(mongoURi, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => {
     console.log("Mongoose is connected");
-    // Start the Agenda after Mongoose connection is successful
-    agenda.start();
   })
   .catch((e) => {
     console.log(e);
   });
+
 
 // handling the error message
 app.all("*", (req, res, next) => {

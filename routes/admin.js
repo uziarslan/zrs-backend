@@ -27,7 +27,8 @@ const {
   getAllBlogs,
   editBlog,
   deleteBlog,
-  getBuyNowCars
+  getBuyNowCars,
+  unsubscribeUser
 } = require("../controllers/admin");
 const multer = require("multer");
 const { storage } = require("../cloudinary");
@@ -134,5 +135,7 @@ router.put("/blogs/:id", protect, upload.single("image"), wrapAsync(editBlog));
 
 // Delete a blog post
 router.delete("/blogs/:id", protect, wrapAsync(deleteBlog));
+
+router.get("/unsubscribe/:id", wrapAsync(unsubscribeUser))
 
 module.exports = router;

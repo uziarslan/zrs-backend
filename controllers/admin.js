@@ -5,20 +5,13 @@ const VehicleType = mongoose.model("VehicleType");
 const VehicleTrim = mongoose.model("VehicleTrim");
 const Blog = mongoose.model("Blog");
 const BuyCar = mongoose.model("BuyCar");
+const Subscribe = mongoose.model("Subscribe");
 const TestDrive = require("../models/testDrive");
 const Car = mongoose.model("Car");
 const ContactUs = require("../models/contactus");
 const jwt = require("jsonwebtoken");
 const agenda = require("../middlewares/agenda");
-const { MailtrapClient } = require("mailtrap");
 
-// Mailtrap Integration
-const TOKEN = process.env.MAIL_TRAP_TOKEN;
-const client = new MailtrapClient({ token: TOKEN });
-const sender = {
-  email: "info@unionmade.net",
-  name: "Union Made Apparel",
-};
 
 const jwt_secret = process.env.JWT_SECRET;
 
@@ -581,6 +574,21 @@ const createBlog = async (req, res) => {
 
     await blog.save();
 
+    const subscribers = await Subscribe.find({ subscribed: true })
+
+    if (subscribers.length) {
+      for (let subs of subscribers) {
+        agenda.now("sendBlogPostEmail", {
+          recipientEmail: subs.email,
+          blogImage: blog.image.path,
+          blogTitle: blog.title,
+          blogDescription: blog.description,
+          blogUrl: `${process.env.DOMAIN_FRONTEND}/blog/${blog._id}`,
+          unsubscribeUrl: `${process.env.DOMAIN_FRONTEND}/unsubscribe/${subs._id}`,
+        });
+      }
+    }
+
     // Respond with success
     res.status(201).json({
       success: "Blog created successfully",
@@ -673,6 +681,12 @@ const deleteBlog = async (req, res) => {
   }
 };
 
+const unsubscribeUser = async (req, res) => {
+  const { id } = req.params
+  await Subscribe.findByIdAndUpdate(id, { subscribed: false })
+  res.status(200).json({ success: "Successfully unsubscribed user" })
+}
+
 module.exports = {
   registerAdmin,
   adminLogin,
@@ -699,5 +713,6 @@ module.exports = {
   getAllBlogs,
   editBlog,
   deleteBlog,
-  getBuyNowCars
+  getBuyNowCars,
+  unsubscribeUser
 };

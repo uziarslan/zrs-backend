@@ -8,6 +8,10 @@ const subscribeSchema = new Schema(
             required: [true, "Email is required"],
             trim: true,
         },
+        subscribed: {
+            type: Boolean,
+            default: true
+        }
     },
     { timestamps: true } // Adds createdAt and updatedAt automatically
 );
