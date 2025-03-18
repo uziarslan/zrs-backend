@@ -167,6 +167,29 @@ const createManufacturer = async (req, res) => {
   res.status(201).json({ success: "Brand created successfully." });
 };
 
+const updateLogoOrder = async (req, res) => {
+  const { newOrder } = req.body;
+
+  if (!Array.isArray(newOrder)) {
+    return res.status(400).json({ error: "Invalid newOrder" });
+  }
+
+  try {
+    const updates = newOrder.map((id, index) => ({
+      updateOne: {
+        filter: { _id: new mongoose.Types.ObjectId(id) },
+        update: { $set: { order: index } }, // Set explicit order
+      },
+    }));
+
+    await Manufacturer.bulkWrite(updates);
+    res.status(200).json({ message: "Logo order updated" });
+  } catch (error) {
+    console.error("Error updating order:", error);
+    res.status(500).json({ error: "Failed to update order" });
+  }
+};
+
 const createVehicleType = async (req, res) => {
   try {
     const { manufacturer, modelName } = req.body;
@@ -714,5 +737,6 @@ module.exports = {
   editBlog,
   deleteBlog,
   getBuyNowCars,
-  unsubscribeUser
+  unsubscribeUser,
+  updateLogoOrder
 };

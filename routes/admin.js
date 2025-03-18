@@ -28,7 +28,8 @@ const {
   editBlog,
   deleteBlog,
   getBuyNowCars,
-  unsubscribeUser
+  unsubscribeUser,
+  updateLogoOrder
 } = require("../controllers/admin");
 const multer = require("multer");
 const { storage } = require("../cloudinary");
@@ -62,6 +63,9 @@ router.post(
   upload.single("logo"),
   wrapAsync(createManufacturer)
 );
+
+// Updating the order of the manufacturers
+router.post("/update-logo-order", protect, wrapAsync(updateLogoOrder));
 
 // Creating a vehicle type after creating a manufacturer
 router.post("/create-vehicle-type", protect, wrapAsync(createVehicleType));

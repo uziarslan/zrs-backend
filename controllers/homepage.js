@@ -9,10 +9,17 @@ const Subscribe = mongoose.model("Subscribe");
 const BuyCar = mongoose.model("BuyCar");
 
 const fetchLogos = async (req, res) => {
-  // Fetch all manufacturers with their brandName and logo
-  const manufacturers = await Manufacturer.find({}, "brandName logo").lean();
+  try {
+    // Fetch all manufacturers with their brandName and logo, sorted by updatedAt
+    const manufacturers = await Manufacturer.find({}, "brandName logo")
+      .sort({ order: 1 })
+      .lean();
 
-  res.status(200).json({ logos: manufacturers });
+    res.status(200).json({ logos: manufacturers });
+  } catch (error) {
+    console.error("Error fetching logos:", error);
+    res.status(500).json({ error: "Failed to fetch logos" });
+  }
 };
 
 const fetchCars = async (req, res) => {

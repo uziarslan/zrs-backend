@@ -12,6 +12,7 @@ const manufacturerSchema = new mongoose.Schema(
       path: String,
       filename: String,
     },
+    order: { type: Number, default: 0 },
   },
   {
     timestamps: true,
