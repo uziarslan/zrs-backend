@@ -33,7 +33,7 @@ const {
 } = require("../controllers/admin");
 const multer = require("multer");
 const { storage } = require("../cloudinary");
-const upload = multer({ storage });
+const upload = multer({ storage, limits: { fileSize: 15 * 1024 * 1024 } });
 
 const router = express();
 
