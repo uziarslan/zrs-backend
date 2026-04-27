@@ -22,6 +22,12 @@ const blogSchema = new Schema(
             ref: "Admin",
             required: [true, "Admin ID is required"],
         },
+        imageStatus: {
+            type: String,
+            enum: ["pending", "done", "failed"],
+            default: "done",
+        },
+        imageError: { type: String, default: null },
     },
     { timestamps: true } // Adds createdAt and updatedAt automatically
 );

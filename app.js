@@ -61,8 +61,9 @@ const corsOptions = {
 // Using the app
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
-app.use(express.urlencoded({ extended: true }));
-app.use(bodyParser.json());
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+// 1mb is plenty for our JSON payloads — image bytes go directly to Cloudinary
+app.use(bodyParser.json({ limit: "1mb" }));
 app.use(session(sessionConfig));
 
 // Start Agenda

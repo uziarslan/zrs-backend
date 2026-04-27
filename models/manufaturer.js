@@ -13,6 +13,12 @@ const manufacturerSchema = new mongoose.Schema(
       filename: String,
     },
     order: { type: Number, default: 0 },
+    imageStatus: {
+      type: String,
+      enum: ["pending", "done", "failed"],
+      default: "done",
+    },
+    imageError: { type: String, default: null },
   },
   {
     timestamps: true,

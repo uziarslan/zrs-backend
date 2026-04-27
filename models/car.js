@@ -95,6 +95,12 @@ const carSchema = new mongoose.Schema({
   specifications: { type: Map, of: Boolean },
   description: { type: String },
   images: [imageSchema],
+  imageStatus: {
+    type: String,
+    enum: ["pending", "done", "failed"],
+    default: "done",
+  },
+  imageError: { type: String, default: null },
   createdAt: { type: Date, default: Date.now },
 });
 

@@ -29,117 +29,61 @@ const {
   deleteBlog,
   getBuyNowCars,
   unsubscribeUser,
-  updateLogoOrder
+  updateLogoOrder,
+  getImageStatus,
+  getCloudinarySignature,
 } = require("../controllers/admin");
-const multer = require("multer");
-const { storage } = require("../cloudinary");
-const upload = multer({ storage, limits: { fileSize: 15 * 1024 * 1024 } });
 
 const router = express();
 
-// Handling and saving the admin credentials
+// Auth
 router.post("/admin/signup", wrapAsync(registerAdmin));
-
-// Fetching and verify user request
 router.post("/admin/login", wrapAsync(adminLogin));
-
-// Fetching User for frontend
 router.get("/admin", protect, wrapAsync(getAdmin));
 
-// Delete Img from Cloudinary
+// Cloudinary signature for direct browser uploads
+router.get("/cloudinary-signature", protect, wrapAsync(getCloudinarySignature));
+
+// Manufacturers — image is uploaded directly from browser to Cloudinary,
+// the JSON body just carries { brandName, logo: { path, filename } }
 router.delete("/delete-logo", protect, wrapAsync(deleteImg));
-
-// Editing Manufature info and uploading the images to cloudinary if any
-router.put(
-  "/update-manufacturer/:editId",
-  upload.single("logo"),
-  wrapAsync(updateManufacturer)
-);
-
-// Creating the Manufacturer
-router.post(
-  "/create-manufacturer",
-  protect,
-  upload.single("logo"),
-  wrapAsync(createManufacturer)
-);
-
-// Updating the order of the manufacturers
+router.put("/update-manufacturer/:editId", protect, wrapAsync(updateManufacturer));
+router.post("/create-manufacturer", protect, wrapAsync(createManufacturer));
 router.post("/update-logo-order", protect, wrapAsync(updateLogoOrder));
 
-// Creating a vehicle type after creating a manufacturer
+// Vehicle types
 router.post("/create-vehicle-type", protect, wrapAsync(createVehicleType));
-
-// Fetch all vehicle types
 router.get("/fetch-vehicle-types", wrapAsync(getVehicleTypes));
-
-// Update an existing vehicle type
 router.put("/update-vehicle-type/:id", protect, wrapAsync(updateVehicleType));
+router.delete("/delete-vehicle-type/:id", protect, wrapAsync(deleteVehicleType));
 
-// Delete a vehicle type
-router.delete(
-  "/delete-vehicle-type/:id",
-  protect,
-  wrapAsync(deleteVehicleType)
-);
-
-// Fetch vehicle Trim
+// Vehicle trims
 router.get("/fetch-vehicle-trims", protect, wrapAsync(getVehicleTrims));
-
-// Create vehicle trim
 router.post("/create-vehicle-trim", protect, wrapAsync(createVehicleTrim));
-
-// Edit Vehicle Trim
 router.put("/update-vehicle-trim/:id", protect, wrapAsync(updateVehicleTrim));
+router.delete("/delete-vehicle-trim/:id", protect, wrapAsync(deleteVehicleTrim));
 
-// Delete the Vehicle Trim
-router.delete(
-  "/delete-vehicle-trim/:id",
-  protect,
-  wrapAsync(deleteVehicleTrim)
-);
-
-// Car creation
-router.post("/cars", upload.array("images"), wrapAsync(createCar));
-
-// Fetching all cars
+// Cars — JSON only; the browser uploads images straight to Cloudinary first
+router.post("/cars", protect, wrapAsync(createCar));
 router.get("/cars", protect, wrapAsync(getAllCars));
+router.put("/:id", protect, wrapAsync(updateCar));
+router.delete("/:id", protect, wrapAsync(deleteCar));
 
-// Update a car (including image management)
-router.put(
-  "/:id",
-  upload.array("images"), // Handle multiple image uploads via middleware
-  wrapAsync(updateCar)
-);
-
-// Delete a car (including its images)
-router.delete("/:id", wrapAsync(deleteCar));
-
-// Router to fetch contact us data
+// Customer submissions
 router.get("/contact-us", protect, wrapAsync(getContactUs));
-
-// Add this line
 router.post("/contact-us", wrapAsync(createContactUs));
-
-// Fetch test drive data
 router.get("/test-drives", wrapAsync(getTestDrives));
+router.get("/buy-car", wrapAsync(getBuyNowCars));
 
-// Fetch all Buy now cars
-router.get("/buy-car", wrapAsync(getBuyNowCars))
-
-
-// Create a blog post
-router.post("/blogs", protect, upload.single("image"), wrapAsync(createBlog));
-
-// Get all blog posts
-router.get("/blogs", wrapAsync(getAllBlogs)); // Public access to fetch all blogs
-
-// Edit a blog post
-router.put("/blogs/:id", protect, upload.single("image"), wrapAsync(editBlog));
-
-// Delete a blog post
+// Blogs
+router.post("/blogs", protect, wrapAsync(createBlog));
+router.get("/blogs", wrapAsync(getAllBlogs));
+router.put("/blogs/:id", protect, wrapAsync(editBlog));
 router.delete("/blogs/:id", protect, wrapAsync(deleteBlog));
 
-router.get("/unsubscribe/:id", wrapAsync(unsubscribeUser))
+router.get("/unsubscribe/:id", wrapAsync(unsubscribeUser));
+
+// Polling endpoint kept for backward-compat — no longer used by the new flow
+router.get("/upload-status/:type/:id", wrapAsync(getImageStatus));
 
 module.exports = router;

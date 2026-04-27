@@ -11,7 +11,25 @@ const Car = mongoose.model("Car");
 const ContactUs = require("../models/contactus");
 const jwt = require("jsonwebtoken");
 const agenda = require("../middlewares/agenda");
+const { cloudinary } = require("../cloudinary");
 
+const CLOUDINARY_FOLDER = "ZRS CAR TRADING";
+
+// Issues a short-lived signature so the browser can upload directly to Cloudinary.
+const getCloudinarySignature = async (req, res) => {
+  const timestamp = Math.round(Date.now() / 1000);
+  const signature = cloudinary.utils.api_sign_request(
+    { timestamp, folder: CLOUDINARY_FOLDER },
+    process.env.CLOUDINARY_SECRET
+  );
+  res.json({
+    signature,
+    timestamp,
+    apiKey: process.env.CLOUDINARY_KEY,
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    folder: CLOUDINARY_FOLDER,
+  });
+};
 
 const jwt_secret = process.env.JWT_SECRET;
 
@@ -100,71 +118,79 @@ const deleteImg = async (req, res) => {
   }
 };
 
-const updateManufacturer = async (req, res, next) => {
+// Accepts an already-uploaded Cloudinary asset in req.body.logo.
+// Shape: { brandName, logo?: { path, filename } }
+const updateManufacturer = async (req, res) => {
   const { editId } = req.params;
-  const { brandName } = req.body;
-  let logo = req.file ? req.file : null;
+  const { brandName, logo: newLogo } = req.body;
 
-  // First, find the manufacturer to check its current logo status
-  const manufacturer = await Manufacturer.findById(editId);
+  try {
+    const manufacturer = await Manufacturer.findById(editId);
+    if (!manufacturer) {
+      if (newLogo?.filename) {
+        cloudinary.uploader.destroy(newLogo.filename).catch(() => {});
+      }
+      return res.status(404).json({ error: "Manufacturer not found" });
+    }
 
-  // If the manufacturer was not found
-  if (!manufacturer) {
-    return res.status(404).json({ error: "Manufacturer not found" });
-  }
+    if ((!manufacturer.logo || (!manufacturer.logo.path && !manufacturer.logo.filename)) && !newLogo) {
+      return res.status(400).json({
+        error: "A logo image is required when there is no existing logo",
+      });
+    }
 
-  // Check if there's no logo or if the logo is being removed (empty logo)
-  if (
-    (!manufacturer.logo ||
-      (!manufacturer.logo.path && !manufacturer.logo.filename)) &&
-    !logo
-  ) {
-    return res.status(400).json({
-      error: "A logo image is required when there is no existing logo",
+    const oldFilename = manufacturer.logo?.filename;
+
+    const update = { brandName, imageStatus: "done", imageError: null };
+    if (newLogo) update.logo = { path: newLogo.path, filename: newLogo.filename };
+
+    const updated = await Manufacturer.findByIdAndUpdate(editId, update, {
+      new: true,
+      runValidators: true,
     });
+
+    if (newLogo && oldFilename && oldFilename !== newLogo.filename) {
+      agenda.now("deleteFileFromCloudinary", { filename: oldFilename }).catch(() => {});
+    }
+
+    res.status(200).json({
+      success: "Manufacturer updated successfully",
+      manufacturer: updated,
+    });
+  } catch (error) {
+    if (req.body?.logo?.filename) {
+      cloudinary.uploader.destroy(req.body.logo.filename).catch(() => {});
+    }
+    console.error("Error updating manufacturer:", error);
+    res.status(500).json({ error: "Failed to update manufacturer" });
   }
-
-  // Update the manufacturer
-  const updatedManufacturer = await Manufacturer.findByIdAndUpdate(
-    editId,
-    {
-      brandName: brandName,
-      logo: logo
-        ? {
-          path: logo.path,
-          filename: logo.filename,
-        }
-        : manufacturer.logo, // If no new logo is provided, keep the current one
-    },
-    { new: true, runValidators: true }
-  );
-
-  // Send back the updated manufacturer
-  res.status(200).json({
-    success: "Manufacturer updated successfully",
-    manufacturer: updatedManufacturer,
-  });
 };
 
 const createManufacturer = async (req, res) => {
-  const { brandName } = req.body;
+  const { brandName, logo } = req.body;
 
-  if (!brandName || !req.file) {
-    return res
-      .status(400)
-      .json({ error: "Manufacturer name and logo are required" });
+  if (!brandName || !logo?.path || !logo?.filename) {
+    if (logo?.filename) cloudinary.uploader.destroy(logo.filename).catch(() => {});
+    return res.status(400).json({ error: "Brand name and logo are required" });
   }
 
-  const newManufacturer = new Manufacturer({
-    brandName,
-    logo: {
-      filename: req.file.filename,
-      path: req.file.path,
-    },
-  });
+  try {
+    const newManufacturer = new Manufacturer({
+      brandName,
+      logo: { path: logo.path, filename: logo.filename },
+      imageStatus: "done",
+    });
+    await newManufacturer.save();
 
-  await newManufacturer.save();
-  res.status(201).json({ success: "Brand created successfully." });
+    res.status(201).json({
+      success: "Brand created successfully.",
+      manufacturer: newManufacturer,
+    });
+  } catch (error) {
+    cloudinary.uploader.destroy(logo.filename).catch(() => {});
+    console.error("Error creating manufacturer:", error);
+    res.status(500).json({ error: "Failed to create manufacturer" });
+  }
 };
 
 const updateLogoOrder = async (req, res) => {
@@ -361,36 +387,36 @@ const deleteVehicleTrim = async (req, res) => {
   }
 };
 
+// Accepts pre-uploaded image refs in req.body.images: [{ path, filename }, ...]
 const createCar = async (req, res) => {
-  // Transform uploaded files into { filename, path } objects
-  const imageData = req.files
-    ? req.files.map((file) => ({
-      filename: file.filename,
-      path: file.path,
-    }))
-    : [];
+  const incomingImages = Array.isArray(req.body.images) ? req.body.images : [];
+  try {
+    let specifications = req.body.specifications;
+    if (typeof specifications === "string") specifications = JSON.parse(specifications);
 
-  // Parse specifications if it's a string
-  let specifications = req.body.specifications;
-  if (typeof specifications === "string") {
-    specifications = JSON.parse(specifications);
+    const car = new Car({
+      ...req.body,
+      specifications,
+      images: incomingImages
+        .filter((i) => i?.path && i?.filename)
+        .map((i) => ({ path: i.path, filename: i.filename })),
+      imageStatus: "done",
+    });
+    await car.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Car created successfully",
+      data: car,
+    });
+  } catch (error) {
+    // Roll back the images the browser already uploaded
+    incomingImages.forEach((i) => {
+      if (i?.filename) cloudinary.uploader.destroy(i.filename).catch(() => {});
+    });
+    console.error("Error creating car:", error);
+    res.status(500).json({ error: "Failed to create car" });
   }
-
-  // Create car object
-  const carData = {
-    ...req.body,
-    specifications,
-    images: imageData,
-  };
-
-  const car = new Car(carData);
-  await car.save();
-
-  res.status(201).json({
-    success: true,
-    message: "Car created successfully",
-    data: car,
-  });
 };
 
 const getAllCars = async (req, res) => {
@@ -406,72 +432,79 @@ const getAllCars = async (req, res) => {
   });
 };
 
-// Update car with image management (use middleware-uploaded images, schedule deletion for existing)
+// Body shape: {
+//   ...carFields,
+//   specifications: object | json-string,
+//   existingImages: [{ path, filename }, ...],
+//   newImages: [{ path, filename }, ...],
+//   deletedImageFilenames: [filename, ...],
+// }
 const updateCar = async (req, res) => {
+  const incomingNewImages = Array.isArray(req.body.newImages) ? req.body.newImages : [];
+
   try {
     const car = await Car.findById(req.params.id);
-    if (!car) return res.status(404).json({ error: "Car not found" });
+    if (!car) {
+      incomingNewImages.forEach((i) => {
+        if (i?.filename) cloudinary.uploader.destroy(i.filename).catch(() => {});
+      });
+      return res.status(404).json({ error: "Car not found" });
+    }
 
-    // Parse request data
     const {
       deletedImageFilenames: deletedFilenamesRaw,
       existingImages: existingImagesRaw,
       specifications: specificationsRaw,
+      newImages: _ignoredNewImages, // already pulled into incomingNewImages
       ...rest
     } = req.body;
 
-    // Parse specifications
     let specifications = {};
     try {
-      specifications = specificationsRaw ? JSON.parse(specificationsRaw) : {};
-    } catch (error) {
+      specifications =
+        typeof specificationsRaw === "string"
+          ? JSON.parse(specificationsRaw)
+          : specificationsRaw || {};
+    } catch {
+      incomingNewImages.forEach((i) => {
+        if (i?.filename) cloudinary.uploader.destroy(i.filename).catch(() => {});
+      });
       return res.status(400).json({ error: "Invalid specifications format" });
     }
 
-    // Parse deleted filenames and existing images
-    const deletedImageFilenames = deletedFilenamesRaw
+    const deletedImageFilenames = Array.isArray(deletedFilenamesRaw)
+      ? deletedFilenamesRaw
+      : deletedFilenamesRaw
       ? JSON.parse(deletedFilenamesRaw)
       : [];
-    const existingImages = existingImagesRaw
+    const existingImages = Array.isArray(existingImagesRaw)
+      ? existingImagesRaw
+      : existingImagesRaw
       ? JSON.parse(existingImagesRaw)
       : [];
 
-    // Process new uploaded images
-    const newImages =
-      req.files?.map((file) => ({
-        filename: file.filename, // Should be the Cloudinary public_id
-        path: file.path,
-      })) || [];
+    // Schedule Cloudinary deletion for removed images
+    deletedImageFilenames.forEach((filename) => {
+      agenda.now("deleteFileFromCloudinary", { filename }).catch(() => {});
+    });
 
-    // Delete images from Cloudinary
-    if (deletedImageFilenames.length > 0) {
-      await Promise.all(
-        deletedImageFilenames.map((filename) =>
-          agenda.now("deleteFileFromCloudinary", { filename })
-        )
-      );
-    }
-
-    // Combine existing (filtered) and new images
     const updatedImages = [
-      ...existingImages.filter(
-        (img) => !deletedImageFilenames.includes(img.filename)
-      ),
-      ...newImages,
+      ...existingImages.filter((img) => !deletedImageFilenames.includes(img.filename)),
+      ...incomingNewImages
+        .filter((i) => i?.path && i?.filename)
+        .map((i) => ({ path: i.path, filename: i.filename })),
     ];
 
-    // Prepare update data
     const updateData = {
       ...rest,
       specifications,
       images: updatedImages,
       originalPrice: parseFloat(rest.originalPrice),
-      discountedPrice: rest.discountedPrice
-        ? parseFloat(rest.discountedPrice)
-        : null,
+      discountedPrice: rest.discountedPrice ? parseFloat(rest.discountedPrice) : null,
+      imageStatus: "done",
+      imageError: null,
     };
 
-    // Update the car
     const updatedCar = await Car.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true,
@@ -479,6 +512,9 @@ const updateCar = async (req, res) => {
 
     res.json({ success: true, data: updatedCar });
   } catch (err) {
+    incomingNewImages.forEach((i) => {
+      if (i?.filename) cloudinary.uploader.destroy(i.filename).catch(() => {});
+    });
     console.error("Error in updateCar:", err.message, err.stack);
     res.status(500).json({ error: "Failed to update car" });
   }
@@ -566,41 +602,39 @@ const getBuyNowCars = async (req, res) => {
 }
 
 
+// Body shape: { title, description, image: { path, filename } }
 const createBlog = async (req, res) => {
+  const { title, description, image } = req.body;
+  const adminId = req.user.id;
+
+  if (!title || !description) {
+    if (image?.filename) cloudinary.uploader.destroy(image.filename).catch(() => {});
+    return res.status(400).json({ error: "Title and description are required" });
+  }
+  if (!image?.path || !image?.filename) {
+    return res.status(400).json({ error: "Thumbnail image is required" });
+  }
+
   try {
-    // Extract form data
-    const { title, description } = req.body;
-    const image = req.file;
-    const adminId = req.user.id; // From authentication middleware
-
-    // Validate required fields
-    if (!title || !description) {
-      return res.status(400).json({ error: "Title and description are required" });
-    }
-    if (!image) {
-      return res.status(400).json({ error: "Thumbnail image is required" });
-    }
-
-    // Verify admin
     const admin = await Admin.findById(adminId);
     if (!admin) {
+      cloudinary.uploader.destroy(image.filename).catch(() => {});
       return res.status(404).json({ error: "Admin not found" });
     }
 
-    // Create new blog
     const blog = new Blog({
       title,
       description,
-      image: { filename: image.filename, path: image.path },
+      image: { path: image.path, filename: image.filename },
       postedBy: adminId,
+      imageStatus: "done",
     });
-
     await blog.save();
 
-    const subscribers = await Subscribe.find({ subscribed: true })
-
-    if (subscribers.length) {
-      for (let subs of subscribers) {
+    // Notify subscribers — runs in the background, no need to block the response
+    try {
+      const subscribers = await Subscribe.find({ subscribed: true });
+      for (const subs of subscribers) {
         agenda.now("sendBlogPostEmail", {
           recipientEmail: subs.email,
           blogImage: blog.image.path,
@@ -610,13 +644,13 @@ const createBlog = async (req, res) => {
           unsubscribeUrl: `${process.env.DOMAIN_FRONTEND}/unsubscribe/${subs._id}`,
         });
       }
+    } catch (e) {
+      console.error("Failed to enqueue subscriber emails:", e.message);
     }
 
-    // Respond with success
-    res.status(201).json({
-      success: "Blog created successfully",
-    });
+    res.status(201).json({ success: "Blog created successfully", blog });
   } catch (error) {
+    cloudinary.uploader.destroy(image.filename).catch(() => {});
     console.error("Error creating blog:", error);
     res.status(500).json({ error: "Failed to create blog" });
   }
@@ -633,44 +667,45 @@ const getAllBlogs = async (req, res) => {
   }
 };
 
-// Edit a blog
+// Body shape: { title?, description?, image?: { path, filename } }
 const editBlog = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description } = req.body;
-    const newImage = req.file; // From upload.single("image")
+    const { title, description, image } = req.body;
 
     const blog = await Blog.findById(id);
     if (!blog) {
+      if (image?.filename) cloudinary.uploader.destroy(image.filename).catch(() => {});
       return res.status(404).json({ error: "Blog not found" });
     }
-
-    // Check if the user is the author (admin)
     if (blog.postedBy.toString() !== req.user.id) {
+      if (image?.filename) cloudinary.uploader.destroy(image.filename).catch(() => {});
       return res.status(403).json({ error: "Unauthorized" });
     }
 
-    // If a new image is uploaded, delete the old one from Cloudinary
-    if (newImage && blog.image && blog.image.filename) {
-      await agenda.now("deleteFileFromCloudinary", { filename: blog.image.filename });
-    }
+    const oldFilename = blog.image?.filename;
 
-    // Update fields only if provided
     blog.title = title || blog.title;
     blog.description = description || blog.description;
-    if (newImage) {
-      blog.image = {
-        filename: newImage.filename, // Cloudinary public ID or unique filename
-        path: newImage.path, // Adjust path as needed
-      };
+    if (image?.path && image?.filename) {
+      blog.image = { path: image.path, filename: image.filename };
+      blog.imageStatus = "done";
+      blog.imageError = null;
     }
 
     const updatedBlog = await blog.save();
 
-    const populatedBlog = await Blog.findById(updatedBlog._id).populate("postedBy", "name");
+    // Clean up the previous image once the new one is saved
+    if (image?.filename && oldFilename && oldFilename !== image.filename) {
+      agenda.now("deleteFileFromCloudinary", { filename: oldFilename }).catch(() => {});
+    }
 
-    res.status(200).json({ message: "Blog updated successfully", blog: populatedBlog });
+    const populatedBlog = await Blog.findById(updatedBlog._id).populate("postedBy", "name");
+    res.status(200).json({ message: "Blog updated", blog: populatedBlog });
   } catch (error) {
+    if (req.body?.image?.filename) {
+      cloudinary.uploader.destroy(req.body.image.filename).catch(() => {});
+    }
     console.error("Error updating blog:", error);
     res.status(500).json({ error: "Failed to update blog" });
   }
@@ -710,6 +745,35 @@ const unsubscribeUser = async (req, res) => {
   res.status(200).json({ success: "Successfully unsubscribed user" })
 }
 
+// Returns just the image-related fields for a resource — used by the frontend
+// poller while a background upload job is running.
+const getImageStatus = async (req, res) => {
+  const { type, id } = req.params;
+  let doc = null;
+  try {
+    if (type === "manufacturer") {
+      doc = await Manufacturer.findById(id, "logo imageStatus imageError").lean();
+    } else if (type === "blog") {
+      doc = await Blog.findById(id, "image imageStatus imageError").lean();
+    } else if (type === "car") {
+      doc = await Car.findById(id, "images imageStatus imageError").lean();
+    } else {
+      return res.status(400).json({ error: "Unknown resource type" });
+    }
+    if (!doc) return res.status(404).json({ error: "Not found" });
+    res.json({
+      imageStatus: doc.imageStatus || "done",
+      imageError: doc.imageError || null,
+      logo: doc.logo,
+      image: doc.image,
+      images: doc.images,
+    });
+  } catch (err) {
+    console.error("getImageStatus failed:", err);
+    res.status(500).json({ error: "Failed to fetch status" });
+  }
+};
+
 module.exports = {
   registerAdmin,
   adminLogin,
@@ -738,5 +802,7 @@ module.exports = {
   deleteBlog,
   getBuyNowCars,
   unsubscribeUser,
-  updateLogoOrder
+  updateLogoOrder,
+  getImageStatus,
+  getCloudinarySignature,
 };
